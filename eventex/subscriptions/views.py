@@ -1,26 +1,42 @@
+from django.conf import settings
 from django.contrib import messages
 from django.core import mail
-from django.http import HttpResponseRedirect, HttpResponse
+from django.http import HttpResponseRedirect
 from django.shortcuts import render
 from django.template.loader import render_to_string
 from eventex.subscriptions.forms import SubscritionForm
 
 
 def subscribe(request):
-    if request.method == 'POST':
-        form = SubscritionForm(request.POST)
-        if form.is_valid():
-            form.full_clean()
-            body = render_to_string('subscriptions/subscription_email.txt', form.cleaned_data)
-            mail.send_mail('Confirmação de inscrição', body, 'marcus.vieira@gmail.com',
-                           ['marcus.vieira@gmail.com', form.cleaned_data['email']])
-
-            messages.success(request, 'Inscrição realizada com sucesso!')
-
-            return HttpResponseRedirect('/inscricao/')
-        else:
-            context = {'form': form}
-            return render(request, 'subscriptions/subscription_form.html', context)
+    if request.method == "POST":
+        return create(request)
     else:
-        context = {'form': SubscritionForm()}
+        return new(request)
+
+def create(request):
+    form = SubscritionForm(request.POST)
+
+    if not form.is_valid():
+        context = {'form': form}
         return render(request, 'subscriptions/subscription_form.html', context)
+
+    #Send email
+    form.full_clean()
+    _send_email('Confirmação de inscrição',
+                settings.DEFAULT_FROM_EMAIL,
+                form.cleaned_data['email'],
+                'subscriptions/subscription_email.txt',
+                form.cleaned_data)
+
+    #Success feedback
+    messages.success(request, 'Inscrição realizada com sucesso!')
+
+    return HttpResponseRedirect('/inscricao/')
+
+def new(request):
+    context = {'form': SubscritionForm()}
+    return render(request, 'subscriptions/subscription_form.html', context)
+
+def _send_email(subject, from_, to, template_name, context):
+    body = render_to_string(template_name, context)
+    mail.send_mail(subject, body, from_, [from_, to])
